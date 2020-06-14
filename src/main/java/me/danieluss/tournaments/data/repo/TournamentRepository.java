@@ -15,8 +15,4 @@ public interface TournamentRepository extends JpaRepository<Tournament, Long>, J
 
     Optional<Tournament> findById(Long id);
 
-    @Query(value = "SELECT t FROM tournament_app_user tap join tournament t on tap.tournament_id = t.id WHERE user_id = ?1",
-            countQuery = "SELECT count(*) FROM tournament_app_user tap join tournament t on tap.tournament_id = t.id WHERE user_id = ?1",
-            nativeQuery = true)
-    Page<Tournament> findTournamentsByUser(Long id, Pageable pageable);
 }

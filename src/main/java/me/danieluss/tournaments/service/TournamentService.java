@@ -1,10 +1,9 @@
 package me.danieluss.tournaments.service;
 
 import me.danieluss.tournaments.data.dto.TournamentRegistration;
+import me.danieluss.tournaments.data.dto.WinInfo;
 import me.danieluss.tournaments.data.model.*;
-import me.danieluss.tournaments.data.repo.ImageRepository;
-import me.danieluss.tournaments.data.repo.TournamentAppUserRepository;
-import me.danieluss.tournaments.data.repo.TournamentRepository;
+import me.danieluss.tournaments.data.repo.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,12 +21,16 @@ public class TournamentService {
 
     private final ImageRepository imageRepository;
     private final TournamentRepository tournamentRepository;
+    private final LadderRepository ladderRepository;
+    private final MatchRepository matchRepository;
     private final TournamentAppUserRepository tournamentAppUserRepository;
 
     @Autowired
-    public TournamentService(ImageRepository imageRepository, TournamentRepository tournamentRepository, TournamentAppUserRepository tournamentAppUserRepository) {
+    public TournamentService(ImageRepository imageRepository, TournamentRepository tournamentRepository, LadderRepository ladderRepository, MatchRepository matchRepository, TournamentAppUserRepository tournamentAppUserRepository) {
         this.imageRepository = imageRepository;
         this.tournamentRepository = tournamentRepository;
+        this.ladderRepository = ladderRepository;
+        this.matchRepository = matchRepository;
         this.tournamentAppUserRepository = tournamentAppUserRepository;
     }
 
@@ -73,6 +76,8 @@ public class TournamentService {
             for (int i = noParticipants - noMatches; i < noMatches; i++) {
                 previousRound.get(i).setRound(0);
                 previousRound.get(i).setUser1(participants.get(i + noParticipants - noMatches));
+                previousRound.get(i).setWinner1(participants.get(i + noParticipants - noMatches));
+                previousRound.get(i).setWinner2(participants.get(i + noParticipants - noMatches));
             }
             List<Match> matches = new ArrayList<>(previousRound);
             noMatches >>= 1;
@@ -89,6 +94,9 @@ public class TournamentService {
                 roundNo++;
             }
 
+            for(var match: matches) {
+                match.setLadder(ladder);
+            }
             ladder.setMatches(matches);
         }
         return ladder;
@@ -96,17 +104,21 @@ public class TournamentService {
 
     public void updateWinners(Match match, Match parallelMatch, Match nextMatch, String eliminationMode) {
         if (eliminationMode.equals("SINGLE")) {
-            TournamentAppUser winner1 = match.getWinner();
-            if (winner1 != null) {
-                match.setClosed(true);
-            }
-            TournamentAppUser winner2 = parallelMatch.getWinner();
-            if (winner2 != null) {
-                parallelMatch.setClosed(true);
-            }
-            if (winner1 != null && winner2 != null) {
-                nextMatch.setUser1(winner1);
-                nextMatch.setUser2(winner2);
+            if(match!= null) {
+                TournamentAppUser winner1 = match.getWinner();
+                if (winner1 != null) {
+                    match.setClosed(true);
+                }
+                if (parallelMatch != null) {
+                    TournamentAppUser winner2 = parallelMatch.getWinner();
+                    if(winner2 != null) {
+                        parallelMatch.setClosed(true);
+                    }
+                    if (nextMatch != null && winner1 != null && winner2 != null) {
+                        nextMatch.setUser1(winner1);
+                        nextMatch.setUser2(winner2);
+                    }
+                }
             }
         }
     }
@@ -117,4 +129,61 @@ public class TournamentService {
                 && (new Date()).before(tournament.getApplicationDeadline());
     }
 
+    private Ladder makeLadder(Tournament tournament) {
+        Ladder ladder = new Ladder(tournament);
+        return fill(ladder, tournament.getParticipants(), tournament.getEliminationMode());
+    }
+
+    @Transactional
+    public void tryToMakeLadder(Tournament oldTournament) {
+        Tournament tournament = tournamentRepository.getOne(oldTournament.getId());
+        if ((new Date()).after(tournament.getApplicationDeadline())) {
+            if (tournament.getParticipants().size() < 2) {
+                // handle tournament cancellation
+                return;
+            }
+            Ladder ladder = makeLadder(tournament);
+            tournament.setLadder(ladder);
+            ladder.setTournament(tournament);
+            tournamentRepository.save(tournament);
+        }
+    }
+
+    @Transactional
+    public void tryToUpdateWinners(WinInfo winInfo, AppUser user) {
+        Tournament tournament = tournamentRepository.getOne(winInfo.getTournamentId());
+        Ladder ladder = tournament.getLadder();
+        List<Match> matches = ladder.getMatches();
+        Match match = matches.get(winInfo.getNoMatch());
+        if (match.getUser1().sameEmail(user)) {
+            if (winInfo.getWon()) {
+                match.setWinner1(match.getUser1());
+            } else {
+                match.setWinner1(match.getUser2());
+            }
+        } else {
+            if (winInfo.getWon()) {
+                match.setWinner2(match.getUser2());
+            } else {
+                match.setWinner2(match.getUser1());
+            }
+        }
+
+
+        int thisMatch = winInfo.getNoMatch();
+        int parallelMatchI = ((thisMatch >> 1) << 1) + (1 - (thisMatch % 2));
+
+//       TODO proper sum of geo series or change to list of lists
+        int ai = (matches.size() + 1) >> 1;
+        int acc = ai;
+        while (acc <= thisMatch) {
+            ai >>= 1;
+            acc += ai;
+        }
+        int nextMatchI = acc + ((thisMatch - acc + ai) / 2);
+        Match nextMatch = nextMatchI < matches.size() ? matches.get(nextMatchI) : null;
+        Match parallelMatch = nextMatchI < matches.size() ? matches.get(parallelMatchI) : null;
+        updateWinners(match, parallelMatch, nextMatch, tournament.getEliminationMode());
+        ladderRepository.save(ladder);
+    }
 }

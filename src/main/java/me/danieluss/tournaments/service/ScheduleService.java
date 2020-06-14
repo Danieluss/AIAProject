@@ -3,10 +3,13 @@ package me.danieluss.tournaments.service;
 import me.danieluss.tournaments.data.model.Ladder;
 import me.danieluss.tournaments.data.model.Tournament;
 import me.danieluss.tournaments.data.repo.TournamentRepository;
+import org.hibernate.Session;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import javax.persistence.EntityManager;
 import java.util.Date;
 
 @Service
@@ -25,21 +28,9 @@ public class ScheduleService {
 
     public void schedule(Tournament oldTournament) {
         taskScheduler.schedule(() -> {
-            Tournament tournament = tournamentRepository.getOne(oldTournament.getId());
-            if ((new Date()).after(tournament.getApplicationDeadline())) {
-                if (tournament.getParticipants().size() < 2) {
-                    // handle tournament cancellation
-                    return;
-                }
-                Ladder ladder = makeLadder(tournament);
-                tournament.setLadder(ladder);
-                tournamentRepository.save(tournament);
-            }
+            tournamentService.tryToMakeLadder(oldTournament);
         }, oldTournament.getApplicationDeadline());
     }
 
-    private Ladder makeLadder(Tournament tournament) {
-        Ladder ladder = new Ladder(tournament);
-        return tournamentService.fill(ladder, tournament.getParticipants(), tournament.getEliminationMode());
-    }
+
 }

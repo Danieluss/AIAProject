@@ -1,17 +1,12 @@
 package me.danieluss.tournaments.controller;
 
 import me.danieluss.tournaments.data.Specs;
-import me.danieluss.tournaments.data.dto.EnterResult;
-import me.danieluss.tournaments.data.dto.MatchId;
-import me.danieluss.tournaments.data.dto.TournamentDTO;
-import me.danieluss.tournaments.data.dto.TournamentRegistration;
+import me.danieluss.tournaments.data.dto.*;
 import me.danieluss.tournaments.data.model.AppUser;
 import me.danieluss.tournaments.data.model.Match;
 import me.danieluss.tournaments.data.model.Tournament;
 import me.danieluss.tournaments.data.model.TournamentAppUser;
-import me.danieluss.tournaments.data.repo.TournamentAppUserRepository;
-import me.danieluss.tournaments.data.repo.TournamentRepository;
-import me.danieluss.tournaments.data.repo.UserRepository;
+import me.danieluss.tournaments.data.repo.*;
 import me.danieluss.tournaments.service.ScheduleService;
 import me.danieluss.tournaments.service.TournamentService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,14 +19,14 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import javax.validation.Valid;
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -43,6 +38,7 @@ public class TournamentController {
     private final UserRepository userRepository;
     private final TournamentRepository tournamentRepository;
     private final TournamentAppUserRepository tournamentAppUserRepository;
+    private final MatchRepository matchRepository;
     private final ScheduleService scheduleService;
     private final TournamentService tournamentService;
 
@@ -55,11 +51,12 @@ public class TournamentController {
     }
 
     @Autowired
-    public TournamentController(Specs<Tournament> tournamentSpecs, UserRepository userRepository, TournamentRepository tournamentRepository, TournamentAppUserRepository tournamentAppUserRepository, ScheduleService scheduleService, TournamentService tournamentService) {
+    public TournamentController(Specs<Tournament> tournamentSpecs, UserRepository userRepository, TournamentRepository tournamentRepository, TournamentAppUserRepository tournamentAppUserRepository, MatchRepository matchRepository, ScheduleService scheduleService, TournamentService tournamentService) {
         this.tournamentSpecs = tournamentSpecs;
         this.userRepository = userRepository;
         this.tournamentRepository = tournamentRepository;
         this.tournamentAppUserRepository = tournamentAppUserRepository;
+        this.matchRepository = matchRepository;
         this.scheduleService = scheduleService;
         this.tournamentService = tournamentService;
     }
@@ -82,9 +79,13 @@ public class TournamentController {
                            Pageable pageable,
                            Principal principal) {
         AppUser appUser = userRepository.findByEmailIgnoreCase(principal.getName());
-        Page<Tournament> tournaments = tournamentRepository.findTournamentsByUser(appUser.getId(), pageable);
+        List<Tournament> tournaments = appUser.getParticipatedTournaments()
+                .stream()
+                .map(TournamentAppUser::getTournament)
+                .filter(tournament -> tournament.getTime().after(new Date()))
+                .collect(Collectors.toList());
         model.addAttribute("currentPage", pageable.getPageNumber() + 1);
-        model.addAttribute("totalPages", tournaments.getTotalPages());
+        model.addAttribute("totalPages", 1);
         model.addAttribute("tournaments", tournaments);
         return "userList";
     }
@@ -94,7 +95,7 @@ public class TournamentController {
         Tournament tournament = tournamentRepository.getOne(id);
         if (!principal.getName().equalsIgnoreCase(tournament.getOrganizer().getEmail())) {
             model.addAttribute("toastMsg", "You are not allowed to edit this tournament.");
-            return "home";
+            return "list";
         }
         TournamentDTO tournamentDTO = new TournamentDTO(tournament);
         model.addAttribute("tournament", tournamentDTO);
@@ -143,6 +144,12 @@ public class TournamentController {
         if (id != -1) {
             existingTournament = tournamentRepository.findById(id).orElse(null);
             if (existingTournament != null && existingTournament.getOrganizer().getEmail().equalsIgnoreCase(organizer.getEmail())) {
+                if (tournamentDTO.getMaxParticipants() < existingTournament.getParticipants().size()) {
+                    bindingResult.rejectValue("maxParticipants", "error.tournament", "You can't kick out participants like that!");
+                    redirectAttrs.addFlashAttribute("org.springframework.validation.BindingResult.tournament", bindingResult);
+                    redirectAttrs.addFlashAttribute("tournament", tournamentDTO);
+                    return "redirect:add";
+                }
                 tournament.setId(id);
                 tournamentService.save(tournament, existingTournament);
                 scheduleService.schedule(tournament);
@@ -185,17 +192,18 @@ public class TournamentController {
             List<Integer> rounds = new ArrayList<>();
             List<List<MatchId>> roundMatches = new ArrayList<>();
             List<Match> matches = tournament.getLadder().getMatches();
+            matches.sort(Comparator.comparingLong(Match::getId));
             int totalMatches = matches.size();
             int last = 0;
-            for (int i = (totalMatches + 1); i >= 1; i >>= 1) {
+            for (int i = (totalMatches + 1) >> 1; i >= 1; i >>= 1) {
                 List<MatchId> nextRound = new ArrayList<>();
                 for (int k = last; k < last + i; k++) {
                     MatchId matchId = new MatchId();
                     matchId.setMatch(matches.get(k));
                     matchId.setId(k);
                     nextRound.add(matchId);
-                    rounds.add(i);
                 }
+                rounds.add(i);
                 last += i;
                 roundMatches.add(nextRound);
             }
@@ -203,24 +211,25 @@ public class TournamentController {
             model.addAttribute("rounds", rounds);
             model.addAttribute("canApply", canApply);
         }
+        model.addAttribute("winInfo", new WinInfo());
         return "details";
     }
 
     @RequestMapping(value = "/signUpForTournament", method = RequestMethod.GET)
-    public String signUpForTournament(Model model, @RequestParam Long id, Principal principal) {
+    public String signUpForTournament(Model model, RedirectAttributes redirectAttributes, @RequestParam Long id, Principal principal) {
         TournamentRegistration tournamentAppUser = new TournamentRegistration();
         if (model.containsAttribute("tournamentAppUser")) {
             tournamentAppUser = (TournamentRegistration) model.getAttribute("tournamentAppUser");
         }
         Tournament tournament = tournamentRepository.findById(id).orElse(null);
         if (tournament == null) {
-            model.addAttribute("toastMsg", "This tournament does not exist.");
-            return "home";
+            redirectAttributes.addFlashAttribute("toastMsg", "This tournament does not exist.");
+            return "redirect:list";
         }
         AppUser appUser = userRepository.findByEmailIgnoreCase(principal.getName());
-        if (tournamentService.canApply(tournament, appUser)) {
-            model.addAttribute("toastMsg", "You can't register here.");
-            return "home";
+        if (!tournamentService.canApply(tournament, appUser)) {
+            redirectAttributes.addFlashAttribute("toastMsg", "You can't register here.");
+            return "redirect:list";
         }
         model.addAttribute("tournamentAppUser", tournamentAppUser);
         model.addAttribute("name", tournament.getName());
@@ -251,49 +260,26 @@ public class TournamentController {
         return "redirect:home";
     }
 
-    @RequestMapping(value = "/enter", method = RequestMethod.GET)
-    public String enter(Model model, @RequestParam Long id, @RequestParam Integer matchId, Principal principal) {
-        AppUser appUser = userRepository.findByEmailIgnoreCase(principal.getName());
-        Tournament tournament = tournamentRepository.getOne(id);
-        if (tournament == null ||
-                tournament.getLadder() == null ||
-                tournament.getLadder().getMatches().get(matchId).hasUser(appUser)) {
-            model.addAttribute("toastMsg", "You can't enter the result of this game.");
-            return "details?id=" + id;
+    @PostMapping("/won")
+    public String won(Model model, RedirectAttributes redirectAttrs, @Valid WinInfo winInfo, Principal principal) {
+        Match match = matchRepository.getOne(winInfo.getMatchId());
+        AppUser user = userRepository.findByEmailIgnoreCase(principal.getName());
+        if (!match.hasUser(user)) {
+            redirectAttrs.addFlashAttribute("toastMsg", "You can't enter a result for this match.");
+
+            if (winInfo.getTournamentId() == -1) {
+                return "redirect:list";
+            }
+            return "redirect:details?id=" + winInfo.getTournamentId();
         }
-        EnterResult result = new EnterResult();
-        result.setMatchId(matchId);
-        result.setTournamendId(id);
-        model.addAttribute("enter");
-        return "enter";
+        if (!match.isClosed()) {
+            tournamentService.tryToUpdateWinners(winInfo, user);
+        }
+        redirectAttrs.addFlashAttribute("toastMsg", "You've entered the result.");
+
+        if (winInfo.getTournamentId() == -1) {
+            return "redirect:list";
+        }
+        return "redirect:details?id=" + winInfo.getTournamentId();
     }
-
-    @RequestMapping(value = "/enter", method = RequestMethod.POST)
-    public String enter(Model model, RedirectAttributes redirectAttrs, @Valid EnterResult enter, Principal principal) {
-        AppUser appUser = userRepository.findByEmailIgnoreCase(principal.getName());
-        Tournament tournament = tournamentRepository.getOne(enter.getTournamendId());
-        if (tournament == null ||
-                tournament.getLadder() == null ||
-                tournament.getLadder().getMatches().get(enter.getMatchId()).hasUser(appUser)) {
-            redirectAttrs.addFlashAttribute("toastMsg", "You can't enter the result of this game.");
-            return "redirect:details?id=" + enter.getMatchId();
-        }
-
-        List<Match> matches = tournament.getLadder().getMatches();
-
-        int thisMatch = enter.getMatchId();
-        int parallelMatch = ((thisMatch >> 1) << 1) + (1 - (thisMatch % 2));
-
-//       TODO proper sum of geo series or change to list of lists
-        int ai = (matches.size() + 1) >> 1;
-        int acc = ai;
-        while(thisMatch <= acc) {
-            ai >>= 1;
-            acc += ai;
-        }
-        int nextMatch = acc + ((thisMatch - acc + ai) / 2);
-        tournamentService.updateWinners(matches.get(thisMatch), matches.get(parallelMatch), matches.get(nextMatch), tournament.getEliminationMode());
-        return "redirect:details?id=" + enter.getTournamendId();
-    }
-
 }

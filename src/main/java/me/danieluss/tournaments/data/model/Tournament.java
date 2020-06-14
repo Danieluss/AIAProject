@@ -52,7 +52,7 @@ public class Tournament {
 
     private Integer noImages;
 
-    @OneToOne(mappedBy = "tournament")
+    @OneToOne(mappedBy = "tournament", cascade = CascadeType.ALL)
     private Ladder ladder;
 
     public Tournament(TournamentDTO tournamentDTO, AppUser appUser) {

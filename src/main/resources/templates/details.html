@@ -1,5 +1,7 @@
 <!DOCTYPE html>
-<html lang="en" xmlns:th="http://www.thymeleaf.org"
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{layouts/layout}">
 <head>
@@ -11,6 +13,7 @@
     <script th:src="@{https://maps.googleapis.com/maps/api/js(key=${@environment.getProperty('app.google-maps.key')}, libraries='places', callback='initMap')}"
             async defer></script>
 </head>
+
 <body>
 
 <div layout:fragment="content" class="container-fluid m-0 m-auto p-sm-1 p-md-5">
@@ -42,19 +45,79 @@
         <h3 class="font-weight-light text-center text-lg-left mt-2 mb-2 mr-auto"
             th:text="${tournament.eliminationMode + ' elimination'}"></h3>
 
+
         <div class="tournament-container" th:if="${tournament.ladder}">
             <div class="tournament-headers">
-                <h3 th:each="round : ${rounds}" th:text="${'Round of ' + round}"></h3>
+                <h3 th:each="round : ${rounds}" th:text="${'Round of ' + 2*round}"></h3>
             </div>
-
             <div class="tournament-brackets">
-                <ul class="bracket" th:each="matches : ${roundMatches}">
-                    <li class="team-item"
-                        th:each="matchId : ${matches}"
-                        th:text="${matchId.getMatch().getUser1().getLicense() + '<time>'
-                         + (matchId.getMatch().getWinner() != null ? matchId.getMatch().getWinner() : '----') + '</time>'
-                          + matchId.getMatch().getUser2().getLicense()}"
-                        th:href="@{/enter(id=${tournament.id}, matchId=${match.getId()})}"></li>
+                <ul th:class="${'bracket'}" th:each="matches : ${roundMatches}">
+                    <div th:each="match : ${matches}"
+                         th:if="${(match.getMatch().hasEmail(#authentication.getPrincipal())
+                            && match.getMatch().getUser1() != null
+                            && match.getMatch().getUser1() != null
+                            && !match.match.isClosed())}"
+                            class="modal" tabindex="-1" role="dialog" id="winModal">
+                        <div class="modal-dialog" role="document">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h4 class="modal-title">Enter result</h4>
+                                    <button type="button" class="close" data-dismiss="modal">&times;</button>
+                                </div>
+                                <div class="modal-body">
+                                    <h3 class="modal-text" th:text="${match.getMatch().get1stUserString()
+                                        + ' vs ' + match.getMatch().get2ndUserString()}">
+                                    </h3>
+                                    <span class="modal-text" th:text="${'Did you win?'}"></span>
+                                </div>
+                                <div class="modal-footer">
+                                    <form th:action="@{/won}" th:method="post" th:object="${winInfo}">
+                                        <input type="hidden" name="tournamentId" th:value="${tournament.id}">
+                                        <input type="hidden" name="matchId" th:value="${match.match.id}">
+                                        <input type="hidden" name="noMatch" th:value="${match.id}">
+                                        <input type="hidden" name="won" value="true">
+                                        <button type="submit" class="btn btn-warning" >Yes</button>
+                                    </form>
+                                    <form th:action="@{/won}" th:method="post" th:object="${winInfo}">
+                                        <input type="hidden" name="tournamentId" th:value="${tournament.id}">
+                                        <input type="hidden" name="matchId" th:value="${match.match.id}">
+                                        <input type="hidden" name="noMatch" th:value="${match.id}">
+                                        <input type="hidden" name="won" value="false">
+                                        <button type="submit" class="btn btn-warning" >No</button>
+                                    </form>
+                                    <button type="button" class="btn btn-danger" data-dismiss="modal">Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <li
+                            th:if="${(match.getMatch().hasEmail(#authentication.getPrincipal())
+                            && match.getMatch().getUser1() != null
+                            && match.getMatch().getUser1() != null
+                            && !match.match.isClosed())}"
+                            th:each="match : ${matches}"
+                            class="team-item my-item"
+                            th:attr="match_id=${match.getId()}"
+                            data-toggle="modal"
+                            data-target="#winModal">
+                        <span th:text="${(match.getMatch().get1stUserString())}"></span>
+                        <h3 th:text="${match.getMatch().getWinnerString()}"></h3>
+                        <span th:text="${(match.getMatch().get2ndUserString())}"></span>
+
+                    </li>
+                    <li
+                            th:if="${!(match.getMatch().hasEmail(#authentication.getPrincipal())
+                            && match.getMatch().getUser1() != null
+                            && match.getMatch().getUser1() != null
+                            && !match.match.isClosed())}"
+                            th:each="match : ${matches}"
+                            th:class="${'team-item ' + (match.getMatch().hasEmail(#authentication.getPrincipal())
+                            && !match.match.isClosed() ? 'my-item': '')}"
+                            th:attr="match_id=${match.getId()}">
+                        <span th:text="${(match.getMatch().get1stUserString())}"></span>
+                        <h3 th:text="${match.getMatch().getWinnerString()}"></h3>
+                        <span th:text="${(match.getMatch().get2ndUserString())}"></span>
+                    </li>
                 </ul>
             </div>
         </div>
@@ -88,6 +151,5 @@
 
     </div>
 </div>
-
 </body>
 </html>

@@ -3,6 +3,7 @@ package me.danieluss.tournaments.data.model;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 import me.danieluss.tournaments.data.dto.RegisterUser;
 
 import javax.persistence.*;
@@ -24,10 +25,12 @@ public class AppUser {
     private String lastName;
     private Boolean enabled;
 
+    @ToString.Exclude
     @EqualsAndHashCode.Exclude
     @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.PERSIST, mappedBy = "organizer")
     private List<Tournament> organizedTournaments;
 
+    @ToString.Exclude
     @EqualsAndHashCode.Exclude
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.PERSIST)
     private List<TournamentAppUser> participatedTournaments;
@@ -40,5 +43,9 @@ public class AppUser {
         this.enabled = false;
         this.organizedTournaments = new ArrayList<>();
         this.participatedTournaments = new ArrayList<>();
+    }
+
+    public String getMatchString() {
+        return getFirstName() + ' ' + getLastName();
     }
 }

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layouts/layout}">
+<head>
+    <title>Home</title>
+
+    <link th:href="@{styles/add.css}" rel="stylesheet"/>
+
+    <script th:src="@{scripts/maps_autocomplete.js}"></script>
+    <script th:src="@{scripts/add.js}"></script>
+    <script th:src="@{https://maps.googleapis.com/maps/api/js(key=${@environment.getProperty('app.google-maps.key')}, libraries='places', callback='initAutocomplete')}"
+            async defer></script>
+</head>
+<body>
+
+<div layout:fragment="content" class="container-fluid m-0 m-auto p-sm-1 p-md-5">
+    <form th:class="${param.id != null} ? 'confirmForm form' : 'form'" enctype="multipart/form-data" action="#" th:action="@{/add(id=${param.id})}" th:object="${tournament}" method="post">
+        <h4 class="card-title text-center mb-4 mt-1" th:text="${formTitle}"></h4>
+        <hr>
+        <div th:if="${#fields.hasGlobalErrors()}">
+            <p th:each="err : ${#fields.globalErrors()}" th:text="${err}"></p>
+        </div>
+
+        <p class="text-danger text-center" th:if="${#fields.hasErrors('name')}" th:errors="*{name}"></p>
+        <div class="form-group">
+            <div class="input-group">
+                <input name="name" class="form-control" th:value="${tournament.name}" placeholder="Name" type="text">
+            </div>
+        </div>
+
+        <p class="text-danger text-center" th:if="${#fields.hasErrors('discipline')}" th:errors="*{discipline}"></p>
+        <div class="form-group">
+            <div class="input-group">
+                <input name="discipline" th:value="${tournament.discipline}" list="disciplines" class="form-control" placeholder="Discipline">
+                <datalist id="disciplines" class="form-control" style="display: none">
+                    <option>Volleyball</option>
+                    <option>StarCraft 2</option>
+                    <option>Chess</option>
+                    <option>Algorithmics</option>
+                    <option>Physics</option>
+                </datalist>
+            </div>
+        </div>
+
+        <p class="text-danger text-center" th:if="${#fields.hasErrors('eliminationMode')}" th:errors="*{eliminationMode}"></p>
+        <span class="text-center">Elimination mode:</span>
+        <div class="form-group">
+            <div class="input-group">
+                <select id="eliminationMode" name="eliminationMode" th:value="${tournament.eliminationMode}" class="form-control">
+                    <option>SINGLE</option>
+                    <option>DOUBLE</option>
+                    <option>MULTILEVEL</option>
+                    <option>ROUND_ROBIN</option>
+                </select>
+            </div>
+        </div>
+
+        <p class="text-danger text-center" th:if="${#fields.hasErrors('place')}" th:errors="*{place}"></p>
+        <div class="form-group">
+            <div class="input-group">
+                <input id="pacInput" th:value="${tournament.place}" class="form-control" name="place" placeholder="Location" type="text">
+                <div id="map"></div>
+            </div>
+        </div>
+
+        <p class="text-danger text-center"  th:if="${#fields.hasErrors('time')}" th:errors="*{time}"></p>
+        <span class="text-center">Tournament date:</span>
+        <div class="form-group">
+            <div class="input-group">
+                <input id="time" th:value="${#dates.format(tournament.time, format)}" class="form-control" type="datetime-local" name="time">
+            </div>
+        </div>
+
+        <p class="text-danger text-center" th:if="${#fields.hasErrors('applicationDeadline')}" th:errors="*{applicationDeadline}"></p>
+        <span class="text-center">Application date:</span>
+        <div class="form-group">
+            <div class="input-group">
+                <input id="applicationDate" th:value="${#dates.format(tournament.applicationDeadline, format)}" class="form-control" type="datetime-local" name="applicationDeadline">
+            </div>
+        </div>
+
+        <p class="text-danger text-center" th:if="${#fields.hasErrors('maxParticipants')}" th:errors="*{maxParticipants}"></p>
+        <span class="text-center">Maximum participants:</span>
+        <div class="form-group">
+            <div class="input-group">
+                <input class="form-control" th:value="${tournament.maxParticipants}" type="text" pattern="\d*" name="maxParticipants">
+            </div>
+        </div>
+
+        <p class="text-danger text-center" th:if="${#fields.hasErrors('images')}" th:errors="*{images}"></p>
+        <span class="text-center">Images:</span>
+        <div class="form-group">
+            <div class="input-group">
+                <input class="form-control" th:value="${tournament.images}" type="file" multiple name="images" accept="image/png, image/jpeg">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <button type="submit" class="btn btn-primary btn-block">Submit</button>
+        </div>
+    </form>
+</div>
+
+</body>
+</html>

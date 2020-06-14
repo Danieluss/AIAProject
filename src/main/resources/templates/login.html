@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layouts/layout}">
+<head>
+    <title>Log In</title>
+    <link th:href="@{styles/login.css}" rel="stylesheet" />
+</head>
+<body>
+
+<div layout:fragment="content" class="container-fluid m-0 m-auto p-sm-1 p-md-5">
+    <form class="form" action="#" th:action="@{/login}" th:object="${user}" method="post">
+        <h4 class="card-title text-center mb-4 mt-1">Sign in</h4>
+        <hr>
+        <p class="text-danger text-center" th:if="${param.error}">Wrong email/password.</p>
+        <p class="text-danger text-center" th:text="${message}"></p>
+        <div class="form-group">
+            <div class="input-group">
+                <div class="input-group-prepend">
+                    <span class="input-group-text"> <i class="fa fa-user"></i> </span>
+                </div>
+                <input name="username" class="form-control" placeholder="Email" type="email">
+            </div>
+        </div>
+        <div class="form-group">
+            <div class="input-group">
+                <div class="input-group-prepend">
+                    <span class="input-group-text"> <i class="fa fa-lock"></i> </span>
+                </div>
+                <input name="password" class="form-control" placeholder="******" type="password">
+            </div>
+        </div>
+        <div class="form-group">
+            <button type="submit" class="btn btn-primary btn-block">Login</button>
+        </div>
+        <p class="text-center"><a th:href="@{/forgotPassword}" class="btn">Forgot password?</a><a th:href="@{/register}" class="btn">New here? Sign up</a></p>
+    </form>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layouts/layout}">
+<head>
+    <title>Details</title>
+
+    <link th:href="@{styles/details.css}" rel="stylesheet"/>
+
+    <script th:src="@{scripts/details.js}"></script>
+    <script th:src="@{https://maps.googleapis.com/maps/api/js(key=${@environment.getProperty('app.google-maps.key')}, libraries='places', callback='initMap')}"
+            async defer></script>
+</head>
+<body>
+
+<div layout:fragment="content" class="container-fluid m-0 m-auto p-sm-1 p-md-5">
+
+    <div class="container">
+        <nav class="navbar navbar-expand navbar-light bg-light">
+            <ul class="navbar-nav mr-auto">
+                <li class="nav-item active">
+                    <a class="nav-link" href="#" onclick="history.back()">Return</a>
+                </li>
+                <li class="nav-item active" th:if="${canApply}">
+                    <a class="nav-link" th:href="@{/signUpForTournament(id=${tournament.id})}">Apply</a>
+                </li>
+                <li class="nav-item active" th:if="${canEdit}">
+                    <a class="nav-link" th:href="@{/edit(id=${tournament.id})}">Edit</a>
+                </li>
+            </ul>
+        </nav>
+
+        <h1 class="font-weight-light mt-4 mb-0">
+            <span th:text="${tournament.name}" class="text-left"></span>
+            <i class="fas fa-male float-right"></i>
+            <span th:text="${tournament.participants.size() + '/' + tournament.maxParticipants + ' '}"
+                  class="float-right"></span>
+        </h1>
+        <hr class="mt-2 mb-2">
+        <h3 class="font-weight-light text-center text-lg-left mt-2 mb-2 mr-auto"
+            th:text="${tournament.discipline + ' tournament organized by ' + tournament.organizer.firstName + ' ' + tournament.organizer.lastName}"></h3>
+        <h3 class="font-weight-light text-center text-lg-left mt-2 mb-2 mr-auto"
+            th:text="${tournament.eliminationMode + ' elimination'}"></h3>
+
+        <div class="tournament-container" th:if="${tournament.ladder}">
+            <div class="tournament-headers">
+                <h3 th:each="round : ${rounds}" th:text="${'Round of ' + round}"></h3>
+            </div>
+
+            <div class="tournament-brackets">
+                <ul class="bracket" th:each="matches : ${roundMatches}">
+                    <li class="team-item"
+                        th:each="matchId : ${matches}"
+                        th:text="${matchId.getMatch().getUser1().getLicense() + '<time>'
+                         + (matchId.getMatch().getWinner() != null ? matchId.getMatch().getWinner() : '----') + '</time>'
+                          + matchId.getMatch().getUser2().getLicense()}"
+                        th:href="@{/enter(id=${tournament.id}, matchId=${match.getId()})}"></li>
+                </ul>
+            </div>
+        </div>
+
+        <h1 class="font-weight-light mt-4 mb-0">Deadlines</h1>
+        <hr class="mt-2 mb-2">
+        <h3 class="font-weight-light text-center text-lg-left mt-2 mb-2 mr-auto"
+            th:text="${'Application deadline: ' + #dates.format(tournament.applicationDeadline, 'dd-MM-yyyy HH:mm')}"></h3>
+        <h3 class="font-weight-light text-center text-lg-left mt-2 mb-2 mr-auto"
+            th:text="${'Tournament time: ' + #dates.format(tournament.time, 'dd-MM-yyyy HH:mm')}"></h3>
+
+        <h1 class="font-weight-light text-center text-lg-left mt-4 mb-0">Place</h1>
+        <hr class="mt-2 mb-2">
+        <h3 class="font-weight-light text-center text-lg-left mt-2 mb-2" th:text="${tournament.place}"></h3>
+        <div class="form-group">
+            <div class="input-group">
+                <div id="map" th:attr="query=${tournament.place}"></div>
+            </div>
+        </div>
+
+        <h1 class="font-weight-light text-center text-lg-left mt-4 mb-0">Gallery</h1>
+        <hr class="mt-2 mb-5">
+        <div class="row text-center text-lg-left">
+            <div class="col-lg-3 col-md-4 col-6" th:each="imgNo : ${imgNos}">
+                <a href="#" class="d-block mb-4 h-100">
+                    <img class="img-fluid img-thumbnail"
+                         th:src="@{images/{id}/{imgNo}(id=${tournament.id}, imgNo=${imgNo})}" alt="">
+                </a>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+</body>
+</html>

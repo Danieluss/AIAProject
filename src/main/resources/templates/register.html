@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layouts/layout}">
+<head>
+    <title>Register</title>
+    <link th:href="@{/styles/login.css}" rel="stylesheet" />
+</head>
+<body>
+
+<div layout:fragment="content" class="container-fluid m-0 m-auto p-sm-1 p-md-5">
+    <form class="form" action="#" th:action="@{/register}" th:object="${registerUser}" method="post">
+        <h4 class="card-title text-center mb-4 mt-1">Register</h4>
+        <hr>
+        <div th:if="${#fields.hasGlobalErrors()}">
+            <p th:each="err : ${#fields.globalErrors()}" th:text="${err}"></p>
+        </div>
+
+        <p class="text-danger text-center" th:if="${#fields.hasErrors('firstName')}" th:errors="*{firstName}"></p>
+        <div class="form-group">
+            <div class="input-group">
+                <input name="firstName" th:value="${registerUser.firstName}" class="form-control" placeholder="First name" type="text">
+            </div>
+        </div>
+        <p class="text-danger text-center" th:if="${#fields.hasErrors('lastName')}" th:errors="*{lastName}"></p>
+        <div class="form-group">
+            <div class="input-group">
+                <input name="lastName" th:value="${registerUser.lastName}" class="form-control" placeholder="Last name" type="text">
+            </div>
+        </div>
+        <p class="text-danger text-center" th:value="${registerUser.email}" th:if="${#fields.hasErrors('email')}" th:errors="*{email}"></p>
+        <div class="form-group">
+            <div class="input-group">
+                <input name="email" class="form-control" placeholder="Email" type="email">
+            </div>
+        </div>
+        <p class="text-danger text-center" th:if="${#fields.hasErrors('password')}" th:errors="*{password}"></p>
+        <div class="form-group">
+            <div class="input-group">
+                <input name="password" class="form-control" placeholder="Password" type="password">
+            </div>
+        </div>
+        <p class="text-danger text-center" th:if="${#fields.hasErrors('confirmPassword')}" th:errors="*{confirmPassword}"></p>
+        <div class="form-group">
+            <div class="input-group">
+                <input name="confirmPassword" class="form-control" placeholder="Confirm password" type="password">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <button type="submit" class="btn btn-primary btn-block">Register</button>
+        </div>
+    </form>
+</div>
+
+</body>
+</html>
